@@ -1681,7 +1681,43 @@ class Mobject:
         index_of_submobject_to_align: int | None = None,
         coor_mask: Vector3DLike = np.array([1, 1, 1]),
     ) -> Self:
-        """Move this :class:`~.Mobject` next to another's :class:`~.Mobject` or Point3D.
+        """Moves this :class:`~.Mobject` next to another :class:`~.Mobject` or point.
+
+        Parameters
+        ----------
+        mobject_or_point
+            The target Mobject or point relative to which ``self``
+            will be positioned.
+
+        direction
+            The direction in which ``self`` is placed relative to
+            ``mobject_or_point``. Also controls the direction in
+            which ``buff`` is applied.
+
+        buff
+            The distance between ``self`` and the target after placement.
+            The direction of this gap is controlled by ``direction``.
+        
+        aligned_edge
+            Specifies which edge of ``self`` is used during alignment with the target.
+            When ``mobject_or_point`` is a :class:`~.Mobject`, this also affects which
+            edge of the target is considered for alignment.
+            If ``mobject_or_point`` is a point, this only affects which edge
+            of ``self`` is used for alignment; the target has no edge to consider.
+        
+        submobject_to_align
+            If provided, uses this submobject of ``self`` as the
+            alignment reference instead of ``self`` as a whole.
+
+        index_of_submobject_to_align
+            Selects the submobject of ``self`` by index, to use as the
+            alignment reference, instead of ``self`` as a whole.
+            An alternative to ``submobject_to_align``.
+        
+        coor_mask
+            A vector comprising of 0s and 1s that restricts alignment to certain axes.
+            For example, ``np.array([1, 0, 0])`` aligns only along the x-axis,
+            ignoring y and z.
 
         Examples
         --------
@@ -1725,15 +1761,23 @@ class Mobject:
         self.shift((target_point - point_to_align + buff * np_direction) * coor_mask)
         return self
 
-    def shift_onto_screen(self, **kwargs: Any) -> Self:
+    def shift_onto_screen(self, buff: float = DEFAULT_MOBJECT_TO_EDGE_BUFFER) -> Self:
+        """
+        Pushes ``self`` back onto the screen if any of its edges have gone beyond the frame boundary.
+
+        Parameters
+        ----------
+        buff
+            The minimum distance between the edge of ``self`` and the frame boundary.
+            Default value is 0.25 scene units.
+        """
         space_lengths = [config["frame_x_radius"], config["frame_y_radius"]]
         for vect in UP, DOWN, LEFT, RIGHT:
             dim = np.argmax(np.abs(vect))
-            buff = kwargs.get("buff", DEFAULT_MOBJECT_TO_EDGE_BUFFER)
             max_val = space_lengths[dim] - buff
             edge_center = self.get_edge_center(vect)
             if np.dot(edge_center, vect) > max_val:
-                self.to_edge(vect, **kwargs)
+                self.to_edge(vect, buff=buff)
         return self
 
     def is_off_screen(self) -> bool:
@@ -1914,6 +1958,8 @@ class Mobject:
     def replace(
         self, mobject: Mobject, dim_to_match: int = 0, stretch: bool = False
     ) -> Self:
+        """ Modifies self to have the same bounding box and location as `mobject`. 
+        """
         if not mobject.get_num_points() and not mobject.submobjects:
             raise Warning("Attempting to replace mobject with no points")
         if stretch:

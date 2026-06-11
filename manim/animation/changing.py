@@ -7,6 +7,7 @@ __all__ = ["AnimatedBoundary", "TracedPath"]
 from collections.abc import Callable, Sequence
 from typing import Any, Self
 
+from manim.constants import *
 from manim.mobject.mobject import Mobject
 from manim.mobject.opengl.opengl_compatibility import ConvertToOpenGL
 from manim.mobject.types.vectorized_mobject import VGroup, VMobject
@@ -163,6 +164,7 @@ class TracedPath(VMobject, metaclass=ConvertToOpenGL):
         if not self.has_points():
             self.start_new_path(new_point)
         self.add_line_to(new_point)
+        
         if self.dissipating_time:
             assert self.time is not None
             self.time += dt

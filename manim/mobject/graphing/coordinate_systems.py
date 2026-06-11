@@ -14,7 +14,7 @@ __all__ = [
 import fractions as fr
 import numbers
 from collections.abc import Callable, Iterable, Sequence
-from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Self, TypeVar, overload, Literal
 
 import numpy as np
 
@@ -44,6 +44,7 @@ from manim.utils.color import (
     GREEN,
     PURE_YELLOW,
     WHITE,
+    PURE_RED,
     ManimColor,
     ParsableManimColor,
     color_gradient,
@@ -500,11 +501,12 @@ class CoordinateSystem:
         point
             The point to which the line will be drawn.
         line_func
-            The function of the :class:`~.Line` mobject used to construct the line.
+            The line class used to construct the line, e.g.
+            :class:`~.Line` or :class:`~.DashedLine` (default).
         line_config
-            Optional arguments to passed to :attr:`line_func`.
+            Optional arguments to be passed to :attr:`line_func`.
         color
-            The color of the line.
+            The stroke_color of the line.
         stroke_width
             The stroke width of the line.
 
@@ -654,17 +656,54 @@ class CoordinateSystem:
         ----------
         function
             The function used to construct the :class:`~.ParametricFunction`.
+        
         x_range
-            The range of the curve along the axes. ``x_range = [x_min, x_max, x_step]``.
+            The range of x values over which to plot the function, in the form ``[x_min, x_max]`` or ``[x_min, x_max, x_step]``.
+            If step is not provided for x_range, then step of x_range of Coordinate system is taken as default.
+            This ``x_range`` is different from the ``x_range`` of the Coordinate System itself.
+            ``x_range`` of the Coordinate System, specifies the extent and step of X axis (See code at line#151).
+        
         use_vectorized
-            Whether to pass in the generated t value array to the function. Only use this if your function supports it.
-            Output should be a numpy array of shape ``[y_0, y_1, ...]``
+            When `use_vectorized=False` (i.e. default value), Manim calls the function one x-value at a time in a loop, i.e. scalar in, scalar out.
+            
+            When `use_vectorized=True`, Manim passes the entire generated array of x-values of shape (N,) to the function at once, where N is the number of x-values in the `x_range`.
+            Your function must then return a numpy array of shape (N,3) i.e. of the form: [y_0, y_1, ...].
+            Only put `use_vectorized=True` if your function returns all the y-values simultaneously.
+            i.e. 1D array in, 1D array out.
+
+            Example:
+                # for `use_vectorized=True`, the function receives the whole array in one go, and outputs the entire y values also, in one go.
+                def my_func(x_array):         # x_array is np.array([x0, x1, x2, ...])
+                    return np.sin(x_array)    # The function must return np.array([y0, y1, y2, ...])
+            
+            Using `use_vectorized` is a performance optimization. 
+            NumPy functions are vectorized by nature, for eg.: np.sin(array) is orders of magnitude faster 
+            than calling math.sin(x) in a Python loop.
+            So, rule of thumb: If you are using a numpy function, such as: np.sin, np.cos, np.tan, np.log, np.exp, np.sqrt, np.abs, etc, then 
+            set `use_vectorized=True` for performance optimization. 
+            For any numpy ufunc(Universal Function), the parameter `use_vectorized` can be set to `True`.
+
         colorscale
-            Colors of the function. Optional parameter used when coloring a function by values. Passing a list of colors
-            and a colorscale_axis will color the function by y-value. Passing a list of tuples in the form ``(color, pivot)``
-            allows user-defined pivots where the color transitions.
+            Optional parameter used when coloring the drawn graph, 
+            based on y-values returned by the function. 
+            Passing a list of tuples in the form: ``(color, pivot_point)``
+            allows user-defined pivot_points where the color transition happens.
+            
+            Example::
+                colorscale = [(RED, 0.0), (YELLOW, 5.0), (GREEN, 10.0)]
+                
+                This means:     
+                at y = 0.0 → RED
+                at y = 5.0 → YELLOW
+                at y = 10.0 → GREEN
+
+                Between those pivot_points, the color interpolates smoothly from one color to the next. 
+                So a point at y = 2.5 would be somewhere between RED and YELLOW.
+                Colorscale is applied along whichever axis colorscale_axis specifies (default is 1, meaning y-axis).
+
         colorscale_axis
             Defines the axis on which the colorscale is applied (0 = x, 1 = y), default is y-axis (1).
+            
         kwargs
             Additional parameters to be passed to :class:`~.ParametricFunction`.
 
@@ -702,22 +741,21 @@ class CoordinateSystem:
                     ax_2.to_corner(UR)
                     ax_3.to_edge(DOWN)
                     axes = VGroup(ax_1, ax_2, ax_3)
-
+                    colorscale1 = [(RED, 0),(YELLOW,0)]
+                    colorscale2 = [(RED, -1),(YELLOW,0),(BLUE,0.5),(GREEN,1.2)]
+                    
                     # create the logarithmic curves
                     def log_func(x):
                         return np.log(x)
 
                     # a curve without adjustments; poor interpolation.
-                    curve_1 = ax_1.plot(log_func, color=PURE_RED)
+                    curve_1 = ax_1.plot(log_func, color=[PURE_RED, PURE_YELLOW])
 
                     # disabling interpolation makes the graph look choppy as not enough
                     # inputs are available
-                    curve_2 = ax_2.plot(log_func, use_smoothing=False, color=ORANGE)
-
-                    # taking more inputs of the curve by specifying a step for the
-                    # x_range yields expected results, but increases rendering time.
+                    curve_2 = ax_2.plot(log_func,x_range=(0.001, 6, 0.001), use_smoothing=True, colorscale=colorscale1)
                     curve_3 = ax_3.plot(
-                        log_func, x_range=(0.001, 6, 0.001), color=PURE_GREEN
+                        log_func, x_range=(0.001, 6, 0.001), colorscale = colorscale2,
                     )
 
                     curves = VGroup(curve_1, curve_2, curve_3)
@@ -813,7 +851,7 @@ class CoordinateSystem:
         max_quads
             The maximum number of quads to use.
         kwargs
-            Additional parameters to pass into :class:`ImplicitFunction`.
+            Additional parameters to pass into :class:`ImplicitFunction`.            
 
         Examples
         --------
@@ -861,7 +899,8 @@ class CoordinateSystem:
         use_vectorized
             Whether to pass in the generated t value array to the function. Only use this if your function supports it.
         kwargs
-            Any further keyword arguments are passed to :class:`.ParametricFunction`.
+            Any further keyword arguments are passed to :class:`.ParametricFunction`. 
+            If the user wants to pass t_range, then it is passed on to ParametricFunction via kwargs of this method.
 
         Example
         -------
@@ -1025,20 +1064,23 @@ class CoordinateSystem:
         x: float,
         graph: ParametricFunction | VMobject,
     ) -> Point3D:
-        """Returns the coordinates of the point on a ``graph`` corresponding to an ``x`` value.
+        """Returns the position [x,y,z] of the point w.r.t screen coordinate system, 
+        corresponding to a given x-coordinate on ``graph`` w.r.t axes's coordinate system.
 
         Parameters
         ----------
         x
-            The x-value of a point on the ``graph``.
+            The x-coordinate of the point on the ``graph`` w.r.t the axes's coordinate system.
         graph
             The :class:`~.ParametricFunction` on which the point lies.
+            
 
         Returns
         -------
+        
         :class:`np.ndarray`
-            The coordinates of the point on the :attr:`graph` corresponding to the :attr:`x` value.
-
+            Returns position i.e. numpy array([x,y,z]) w.r.t the screen coordinate system.
+        
         Raises
         ------
         :exc:`ValueError`
@@ -1081,8 +1123,8 @@ class CoordinateSystem:
     def input_to_graph_coords(
         self, x: float, graph: ParametricFunction
     ) -> tuple[float, float]:
-        """Returns a tuple of the axis relative coordinates of the point
-        on the graph based on the x-value given.
+        """Returns a tuple of x and y coordinate of a point on the graph w.r.t axes's coordinate system,
+        based on the x-coordinate of the point w.r.t axes's coordinate system.
 
         Examples
         --------
@@ -1093,6 +1135,8 @@ class CoordinateSystem:
             >>> parabola = ax.plot(lambda x: x**2)
             >>> ax.input_to_graph_coords(x=3, graph=parabola)
             (3, 9)
+            >>> ax.input_to_graph_point(x=3, graph=parabola)
+            array([2.57142857, 6.75, 0.])
         """
         return x, graph.underlying_function(x)
 
@@ -1155,6 +1199,7 @@ class CoordinateSystem:
                         label= MathTex(r"\frac{\pi}{2}"),
                         x_val=PI / 2,
                         dot=True,
+                        dot_config = {'color': YELLOW, 'radius': 0.1},
                         direction=UR,
                     )
 
@@ -1191,7 +1236,7 @@ class CoordinateSystem:
         graph: ParametricFunction,
         x_range: Sequence[float] | None = None,
         dx: float = 0.1,
-        input_sample_type: str = "left",
+        input_sample_type: Literal["left", "right", "center"] = "left",
         stroke_width: float = 1,
         stroke_color: ParsableManimColor = BLACK,
         fill_opacity: float = 1,
@@ -1200,6 +1245,8 @@ class CoordinateSystem:
         bounded_graph: ParametricFunction | None = None,
         blend: bool = False,
         width_scale_factor: float = 1.001,
+        auto_invert_color: bool = True,
+        inverted_color: Iterable[ParsableManimColor] | ParsableManimColor = (PURE_RED, PURE_YELLOW),
     ) -> VGroup:
         """Generates a :class:`~.VGroup` of the Riemann Rectangles for a given curve.
 
@@ -1212,9 +1259,8 @@ class CoordinateSystem:
         dx
             The change in x-value that separates each rectangle.
         input_sample_type
-            Can be any of ``"left"``, ``"right"`` or ``"center"``. Refers to where
-            the sample point for the height of each Riemann Rectangle
-            will be inside the segments of the partition.
+            Can be any of ``"left"``, ``"right"`` or ``"center"``. Determines which x-value 
+            within each partition segment is used to calculate the height of the rectangle.
         stroke_width
             The stroke_width of the border of the rectangles.
         stroke_color
@@ -1231,7 +1277,13 @@ class CoordinateSystem:
             If a secondary graph is specified, encloses the area between the two curves.
         width_scale_factor
             The factor by which the width of the rectangles is scaled.
-
+        auto_invert_color
+            If set to `True`(Default value), then the color of negative area is just the color 
+            received from `invert_color` method, corresponding to the color received by that method.
+        inverted_color
+            The colors of the rectangles in the negative area. Creates a balanced gradient if multiple colors are passed.
+            These work only when `auto_invert_color` is set to `False`.
+        
         Returns
         -------
         :class:`~.VGroup`
@@ -1260,7 +1312,7 @@ class CoordinateSystem:
                     # the colour of rectangles below the x-axis is inverted
                     # due to show_signed_area
                     rects_left = ax.get_riemann_rectangles(
-                        quadratic, x_range=[-1.5, 1.5], dx=0.15, color=YELLOW
+                        quadratic, x_range=[-2.5, 2.5], dx=0.07, inverted_color=(PURE_RED, PURE_YELLOW), auto_invert_color=False,
                     )
 
                     bounding_line = ax.plot(
@@ -1300,7 +1352,14 @@ class CoordinateSystem:
 
         colors = color_gradient(color, len(x_range_array))
 
-        for x, color in zip(x_range_array, colors, strict=True):
+        if isinstance(inverted_color, (list, tuple)):
+            inverted_color = [ManimColor(ic) for ic in inverted_color]
+        else:
+            inverted_color = [ManimColor(inverted_color)]
+        
+        inverted_colors = color_gradient(inverted_color, len(x_range_array))
+
+        for x, color, inverted_color in zip(x_range_array, colors, inverted_colors, strict=True):
             if input_sample_type == "left":
                 sample_input = x
             elif input_sample_type == "right":
@@ -1334,7 +1393,10 @@ class CoordinateSystem:
 
             # checks if the rectangle is under the x-axis
             if self.p2c(graph_point)[1] < y_point and show_signed_area:
-                color = invert_color(color)
+                if auto_invert_color:
+                    color = invert_color(color)
+                else:
+                    color = inverted_color
 
             # blends rectangles smoothly
             if blend:
@@ -1356,6 +1418,7 @@ class CoordinateSystem:
         color: ParsableManimColor | Iterable[ParsableManimColor] = (BLUE, GREEN),
         opacity: float = 0.3,
         bounded_graph: ParametricFunction | None = None,
+        stroke_color: ParsableManimColor | Iterable[ParsableManimColor] | None = None,
         **kwargs: Any,
     ) -> Polygon:
         """Returns a :class:`~.Polygon` representing the area under the graph passed.
@@ -1434,7 +1497,7 @@ class CoordinateSystem:
                 for g in (graph, bounded_graph)
             )
             points = graph_points + bounded_graph_points[::-1]
-        return Polygon(*points, **kwargs).set_opacity(opacity).set_color(color)
+        return Polygon(*points, **kwargs).set_opacity(opacity).set_color(color).set_stroke(color=stroke_color)
 
     def angle_of_tangent(
         self,
@@ -1622,7 +1685,7 @@ class CoordinateSystem:
         secant_line_color: ParsableManimColor = GREEN,
         secant_line_length: float = 10,
     ) -> VGroup:
-        """Creates two lines representing `dx` and `df`, the labels for `dx` and `df`, and
+        """Creates two lines representing `dx` and `dy`, the labels for `dx` and `dy`, and
          the secant to the curve at a particular x-value.
 
         Parameters
@@ -2076,7 +2139,7 @@ class Axes(VGroup, CoordinateSystem, metaclass=ConvertToOpenGL):
         self, *coords: float | Sequence[float] | Sequence[Sequence[float]] | np.ndarray
     ) -> np.ndarray:
         """Accepts coordinates from the axes and returns a point with respect to the scene.
-        Equivalent to `ax @ (coord1)`
+        Equivalent to `ax @ (coords)`
 
         Parameters
         ----------

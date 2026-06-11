@@ -106,14 +106,19 @@ class ParametricFunction(VMobject, metaclass=ConvertToOpenGL):
     def __init__(
         self,
         function: Callable[[float], Point3DLike],
-        t_range: tuple[float, float] | tuple[float, float, float] = (0, 1),
+        t_range: tuple[float, float] | tuple[float, float, float] | list[float] = (0, 1),
         scaling: _ScaleBase = LinearBase(),
         dt: float = 1e-8,
         discontinuities: Iterable[float] | None = None,
         use_smoothing: bool = True,
         use_vectorized: bool = False,
         **kwargs: Any,
-    ):
+    ):  
+        if len(t_range) < 2 or len(t_range) > 3:
+            raise ValueError(
+                "t_range must have either 2 or 3 elements i.e. either (start, stop) or (start, stop, step), "
+                f"but got {len(t_range)} elements."
+            )
         def internal_parametric_function(t: float) -> Point3D:
             """Wrap ``function``'s output inside a NumPy array."""
             return np.asarray(function(t))

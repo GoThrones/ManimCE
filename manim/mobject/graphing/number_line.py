@@ -69,7 +69,7 @@ class NumberLine(Line):
         Whether to add numbers to the tick marks. The number of decimal places is determined
         by the step size, this default can be overridden by ``decimal_number_config``.
     scaling
-        The way the ``x_range`` is value is scaled, i.e. :class:`~.LogBase` for a logarithmic numberline. Defaults to :class:`~.LinearBase`.
+        The way the ``x_range`` value is scaled, i.e. :class:`~.LogBase` for a logarithmic numberline. Defaults to :class:`~.LinearBase`.
     font_size
         The size of the label mobjects. Defaults to 36.
     label_direction
@@ -628,7 +628,7 @@ class NumberLine(Line):
 
     def _create_label_tex(
         self,
-        label_tex: str | float | VMobject,
+        label_tex: str | float | VMobject | OpenGLVMobject,
         label_constructor: Callable | None = None,
         **kwargs: Any,
     ) -> VMobject:
